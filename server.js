@@ -1,5 +1,7 @@
 import express from 'express';
 import bodyParser from 'body-parser';
+import axios from 'axios';
+import imageType from 'image-type';
 import { filterImageFromURL, deleteLocalFiles } from './util/util.js';
 
 // Init the Express application
@@ -23,29 +25,23 @@ app.use(bodyParser.json());
 //    image_url: URL of a publicly accessible image
 // RETURNS
 //   the filtered image file [!!TIP res.sendFile(filteredpath); might be useful]
-
 app.get('/filteredimage', async (req, res) => {
   const { image_url } = req.query;
 
-  // Validate the image_url query
-  if (!image_url) {  // Change this line to directly check if image_url is undefined or empty
+  if (!image_url) {
     return res.status(400).send('image_url query parameter is required.');
   }
 
   try {
-    // Filter the image from the provided URL
-    const filteredImagePath = await filterImageFromURL(image_url);
+    const response = await axios.get(image_url, { responseType: 'arraybuffer' });
+    const imageBuffer = Buffer.from(response.data);
 
-    // Send the resulting file in the response
-    res.status(200).sendFile(filteredImagePath, (err) => {
-      if (err) {
-        console.error('Error sending the file:', err);
-      }
-      // Delete any files on the server after the response is finished
-      deleteLocalFiles([filteredImagePath]);
-    });
+    const { ext, mime } = imageType(imageBuffer) || { ext: 'jpg', mime: 'image/jpeg' };
+
+    res.set('Content-Type', mime);
+
+    res.status(200).send(imageBuffer);
   } catch (error) {
-    // Handle errors from filterImageFromURL or sendFile
     res.status(500).send(`An error occurred: ${error.message}`);
   }
 });
